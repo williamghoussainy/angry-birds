@@ -7,6 +7,7 @@ class Object():
         self.position = position
         self.speed = speed
         self.screen = screen
+        self.mass = size[0]*size[1]
     
     def move(self):
         # Check for collisions
