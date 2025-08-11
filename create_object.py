@@ -11,7 +11,6 @@ class Object(pg.sprite.Sprite):
         self.speed = [0, 0]
         self.mass = size[0] * size[1]
         self.released = False
-        self.dragging = False
         self.dead = False
 
         # Create the sprite's image & rect
@@ -31,31 +30,31 @@ class Object(pg.sprite.Sprite):
         
         if self.speed != [0, 0]:
             self.apply_gravity()
-            self.apply_air_resistance()
 
     def apply_gravity(self):
-        self.speed[1] += 9.81 / 60
+        self.speed[1] += (9.81 * 100) / (60**2)  # pixels/frame²
         
-    def apply_air_resistance(self):
-        if self.speed[0] > 0:
-            self.speed[0] -= 0.1/60
-        else:
-            self.speed[0] += 0.1/60
     
-    def drag(self, mouse_coords):
-        if self.name != "Pig":
-            dx = self.rect.x + self.size[0]/2 - mouse_coords[0]
-            dy = (self.rect.y + self.size[1]/2) - mouse_coords[1]
+    def shoot(self, a, b, c):
+        if self.name != "Pig" and a > 0 and not self.released:
+            self.rect.y -= c
+            
+            g_per_frame = (9.81 * 100) / (60**2)  # pixels/frame²
 
-            if self.released:
-                self.speed = [dx/8, dy/8]
+            
+            vx = ((g_per_frame) / (2 * a)) ** 0.5
+            vy = - b * vx
+            self.speed = [vx, vy]
+            self.released = True
 
-    def show_trajectory(self, i, dx, dy, dist):
-        if dx != 0 and dist != 0:
+
+
+    def show_trajectory(self, i, a, b, c):
+        if a > 0 and not self.released:
             pg.draw.circle(
                 self.screen.surf, 
                 [0, 0, 0], 
                 (i + self.rect.x + self.size[0]/2,
-                 self.rect.y + self.size[1]/2 + trajectory(i, dx, dy, dist)), 
+                 self.rect.y + self.size[1]/2 + trajectory(i, a, b, c)),
                 2
             )

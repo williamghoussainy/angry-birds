@@ -2,6 +2,7 @@ import pygame as pg
 import time as t
 import pyautogui as ptg
 from create_object import Object
+from create_input_boxes import InputBox
 
 
 class Screen():
@@ -15,6 +16,59 @@ class Screen():
         else:
             self.screen = pg.display.set_mode(self.size)
         self.dragging_object_index = -1
+        
+        # Initialize font for text rendering
+        pg.font.init()
+        self.font = pg.font.Font(None, 36)
+        
+        # Create input boxes for quadratic coefficients
+        self.setup_input_boxes()
+        
+    def setup_input_boxes(self):
+        """Setup input boxes for quadratic trajectory coefficients"""
+        # Positioning the input boxes at the top of the screen
+        start_x = 50
+        start_y = 30
+        box_width = 60
+        box_height = 30
+        spacing = 150
+        
+        # Create input boxes for a, b, c coefficients
+        self.input_box_a = InputBox(start_x, start_y, box_width, box_height, text='0.01', label='a')
+        self.input_box_b = InputBox(start_x + spacing, start_y, box_width, box_height, text='3', label='b') 
+        self.input_box_c = InputBox(start_x + spacing*2, start_y, box_width, box_height, text='0', label='c')
+        
+        self.input_boxes = [self.input_box_a, self.input_box_b, self.input_box_c]
+    
+    def draw_trajectory_equation(self):
+        """Draw the trajectory equation with current coefficient values"""
+        # Get coefficient values
+        a = self.input_box_a.get_value()
+        b = self.input_box_b.get_value() 
+        c = self.input_box_c.get_value()
+        
+        # Format the equation text
+        if a != 0:
+            equation_text = f"-({a})x² + ({b})x + ({c})"
+
+            # Render and draw the equation
+            text_surface = self.font.render(equation_text, True, (255, 255, 255))
+            self.surf.blit(text_surface, (50, 80))
+        
+        # Draw labels for input boxes
+        label_font = pg.font.Font(None, 24)
+        
+        # Label for 'a' coefficient
+        a_label = label_font.render("a:", True, (255, 255, 255))
+        self.surf.blit(a_label, (50, 10))
+        
+        # Label for 'b' coefficient  
+        b_label = label_font.render("b:", True, (255, 255, 255))
+        self.surf.blit(b_label, (200, 10))
+        
+        # Label for 'c' coefficient
+        c_label = label_font.render("c:", True, (255, 255, 255))
+        self.surf.blit(c_label, (350, 10))
         
     def add_to_screen(self, object):
         self.objects.append(object)
@@ -93,41 +147,46 @@ class Screen():
     def run(self):
         pg.init()
             
-        
         self.surf.fill((0, 100, 255))
         
         clock = pg.time.Clock()
+
+        show_trajectory = True
         
-        dragging = False
-        
+
         while self.running:
+            a = self.input_box_a.get_value()
+            b = self.input_box_b.get_value() 
+            c = self.input_box_c.get_value()
+            
             mouse_coords = pg.mouse.get_pos()
+            
             for event in pg.event.get():
                 if event.type == pg.QUIT or event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
                     self.running = False
+                    
+                # Handle input box events
+                for input_box in self.input_boxes:
+                    result = input_box.handle_event(event)
+                    if result is not None:
+                        print(f"Updated coefficient: {result}")
+                    
                 if event.type == pg.MOUSEBUTTONDOWN:
-                    for object in self.objects:
-                        if object.name != "Platform":
-                            if (object.rect.x <= mouse_coords[0] <= object.rect.x + object.size[0]) and (object.rect.y <= mouse_coords[1] <= object.rect.y + object.size[1]) and not object.released:
-                                object.dragging = True
-                                self.dragging_object_index = self.objects.index(object)
-                                dragging = True
-                if event.type == pg.MOUSEBUTTONUP:
-                    if self.dragging_object_index != -1:
-                        object = self.objects[self.dragging_object_index]
-                        if object.name != "Platform":
-                            object.dragging = False
-                            object.released = True
-                            object.drag(mouse_coords)
-                    dragging = False
-                
-                if dragging:
-                    if self.dragging_object_index != -1:
-                        object = self.objects[self.dragging_object_index]
-                        if object.name != "Platform":
-                            object.drag(mouse_coords) 
-                                        
+                    if (ptg.size()[0] - 100 <= mouse_coords[0] <= ptg.size()[0]) and (0 <= mouse_coords[1] <= 50):
+                        for object in self.objects:
+                            if object.name == "Bird":
+                                object.shoot(a, b, c)
+            
+                                
             self.check_collisions()
+            
+            shoot_button = pg.Rect(ptg.size()[0] - 100, 0, 100, 50)
+
+            pg.draw.rect(self.surf, (255, 0, 0), shoot_button)
+            
+            # Update input boxes
+            for input_box in self.input_boxes:
+                input_box.update()
             
             for object in self.objects:
                 if object.name == "Platform":
@@ -136,28 +195,23 @@ class Screen():
                 else:
                     object.move()
                     
-                    # Draw trajectory for dragging objects
-                    if object.dragging:
-                        mouse_coords = pg.mouse.get_pos()
-                        dx = object.rect.x + object.size[0]/2 - mouse_coords[0]
-                        dy = (object.rect.y + object.size[1]/2) - mouse_coords[1]
-                        dist = ((dx)**2 + (dy)**2) ** 0.5
-                        
+                    if show_trajectory and object.name == "Bird":                   
                         for i in range(0, 900, 30):
-                            object.show_trajectory(i, dx, dy, dist)
+                            object.show_trajectory(i, a, b, c)
                     
                     if object.name == "Bird":
                         pg.draw.rect(self.surf, [200, 0, 0], (object.rect.x, object.rect.y, object.size[0], object.size[1]))
-                        print(object.speed)
+                        if object.dead or object.speed == [0, 0] and object.released:
+                            self.objects[self.objects.index(object)] = Object("Bird", [30, 30], [135, pg.display.get_surface().get_height() - 230], self)
                     elif object.name == "Pig":
                         pg.draw.rect(self.surf, [0, 150, 0], (object.rect.x, object.rect.y, object.size[0], object.size[1]))
                     
-            if self.dragging_object_index != -1:
-                object = self.objects[self.dragging_object_index]
-                if object.dead or (object.speed == [0, 0] and object.released):
-                    self.objects[self.dragging_object_index] = Object("Bird", [30, 30], [135, ptg.size()[1] - 230], self)
-                    self.dragging_object_index = -1
-                
+
+            for input_box in self.input_boxes:
+                input_box.draw(self.surf)
+
+            self.draw_trajectory_equation()
+
             clock.tick(60)
             
             self.screen.fill((0, 255, 255))
